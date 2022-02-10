@@ -9,10 +9,14 @@ package main
 import (
 	"image"
 	"image/color"
+	"math"
+
+	"github.com/fogleman/gg"
 )
 
 type FilterLine struct {
-	Width int
+	Width  int
+	Height int
 }
 
 func (f *FilterLine) Init(hist Histogram) {
@@ -25,8 +29,21 @@ func (f *FilterLine) Tiled() bool {
 func (f *FilterLine) Transform(input image.Image, output *image.NRGBA) {
 	bounds := input.Bounds()
 
+	paintRegion(output, bounds, color.NRGBA{
+		R: 0xff,
+		G: 0xff,
+		B: 0xff,
+		A: 0xff,
+	})
+
+	gc := gg.NewContextForImage(output)
+	gc.SetColor(color.NRGBA{
+		A: 0xff,
+	})
+	gc.SetLineWidth(4)
+
 	w := f.Width / 2
-	h := f.Width
+	h := f.Height
 
 	numValues := (bounds.Max.X-bounds.Min.X)/w + 2
 
@@ -50,23 +67,33 @@ func (f *FilterLine) Transform(input image.Image, output *image.NRGBA) {
 
 		i = 1
 		for x := bounds.Min.X; x+w < bounds.Max.X; x += w {
-			v := uint8(values[i])
-			paintRegion(output, image.Rectangle{
-				Min: image.Point{
-					X: x,
-					Y: y,
-				},
-				Max: image.Point{
-					X: x + w,
-					Y: y + h,
-				},
-			}, color.NRGBA{
-				R: v,
-				G: v,
-				B: v,
-				A: uint8(0xff),
-			})
+			from := values[i-1]
+			to := values[i]
+			f.line(gc, from, to, x, y, i == 1)
 			i++
+		}
+		gc.Stroke()
+	}
+
+	gc.SavePNG(",out.png")
+}
+
+func (f *FilterLine) line(gc *gg.Context, from, to float64, x, y int,
+	first bool) {
+
+	steps := f.Width / 2
+
+	for i := 0; i < steps; i++ {
+		deg := float64((x+i)%f.Width) / float64(f.Width) * math.Pi * 2
+		val := float64(steps-i)/float64(steps)*from +
+			float64(i)/float64(steps)*to
+		val = 255 - val
+		d := int(math.Sin(deg) * val / 255.0 * float64(f.Height/2))
+
+		if first {
+			gc.MoveTo(float64(x+i), float64(y+f.Width/2+d))
+		} else {
+			gc.LineTo(float64(x+i), float64(y+f.Width/2+d))
 		}
 	}
 }

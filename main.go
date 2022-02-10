@@ -48,7 +48,8 @@ func main() {
 
 	case 2:
 		f = &FilterLine{
-			Width: 20,
+			Width:  30,
+			Height: 30,
 		}
 	}
 
